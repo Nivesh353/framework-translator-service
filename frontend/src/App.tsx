@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+const API = import.meta.env.VITE_API_URL ?? "";
+
 type Status = "idle" | "converting" | "done" | "error";
 
 interface LogLine {
@@ -18,7 +20,7 @@ export default function App() {
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/frameworks")
+    fetch(`${API}/frameworks`)
       .then((r) => r.json())
       .then((d) => {
         setFrameworks(d.frameworks);
@@ -39,7 +41,7 @@ export default function App() {
     setErrorMsg("");
 
     try {
-      const res = await fetch("/api/convert/stream", {
+      const res = await fetch(`${API}/convert/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url.trim(), targetFramework: framework }),
@@ -218,7 +220,7 @@ export default function App() {
             {/* Download button */}
             {status === "done" && sessionId && (
               <a
-                href={`/api/download/${sessionId}`}
+                href={`${API}/download/${sessionId}`}
                 download={zipName}
                 className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground hover:opacity-90 font-sans font-medium rounded-lg px-4 py-2.5 text-sm transition-opacity"
               >
