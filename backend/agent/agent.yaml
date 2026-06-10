@@ -1,0 +1,27 @@
+spec_version: "0.1.0"
+name: framework-translator-agent
+version: 2.0.0
+description: >
+  Translates AI agent code between 10 major frameworks: LangGraph, CrewAI, OpenAI Agents SDK,
+  AutoGen, Semantic Kernel, Haystack, Agno/Phidata, Google ADK, Lyzr ADK, and OpenGAP. Analyzes
+  source agent structure, produces a canonical intermediate representation, generates idiomatic
+  target framework code or OpenGAP file structure, and validates translation fidelity with web
+  search for unknown APIs.
+
+model:
+  preferred: anthropic:claude-sonnet-4-6
+  fallback:
+    - anthropic:claude-sonnet-4-6
+  constraints:
+    temperature: 0.2
+    max_tokens: 8192
+    top_p: 0.9
+
+skills:
+  - analyze
+  - translate
+  - validate
+
+runtime:
+  max_turns: 300
+  timeout: 14400

@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background:           36 33% 94%;
+    --card:                 36 30% 96%;
+    --card-foreground:      25 40% 18%;
+    --popover:              36 30% 96%;
+    --popover-foreground:   25 40% 18%;
+
+    --foreground:           25 40% 18%;
+    --muted:                30 20% 90%;
+    --muted-foreground:     25 20% 45%;
+
+    --primary:              25 62% 25%;
+    --primary-foreground:   36 33% 94%;
+
+    --secondary:            30 15% 90%;
+    --secondary-foreground: 25 40% 18%;
+
+    --border:               30 15% 85%;
+    --input:                30 15% 85%;
+    --ring:                 25 62% 25%;
+
+    --radius:               0.75rem;
+
+    --destructive:          0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --success:              142 71% 45%;
+    --warning:              38 92% 50%;
+    --info:                 217 91% 60%;
+  }
+
+  body {
+    font-family: "DM Sans", system-ui, sans-serif;
+    background-color: hsl(36, 33%, 94%);
+    background-image:
+      linear-gradient(rgba(103, 63, 27, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(103, 63, 27, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    color: hsl(25, 40%, 18%);
+  }
+}
+
+@layer components {
+  .glass         { background: rgba(255, 252, 248, 0.55); backdrop-filter: blur(20px); }
+  .glass-strong  { background: rgba(255, 252, 248, 0.72); backdrop-filter: blur(24px); }
+  .glass-sidebar { background: rgba(255, 252, 248, 0.65); backdrop-filter: blur(30px); }
+  .glass-card    { background: rgba(255, 252, 248, 0.50); backdrop-filter: blur(16px); }
+  .glass-input   { background: rgba(255, 252, 248, 0.40); backdrop-filter: blur(12px); }
+}
