@@ -6,8 +6,8 @@ metadata:
   version: 1.0.0
   category: developer-tools
 confidence: 0.96
-usage_count: 10
-success_count: 9
+usage_count: 12
+success_count: 11
 failure_count: 1
 negative_examples:
   - GitHub publish step could not complete — gh CLI not installed and GH_TOKEN/GITHUB_TOKEN not set in environment. All files generated correctly locally.
