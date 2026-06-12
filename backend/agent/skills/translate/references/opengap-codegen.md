@@ -132,17 +132,18 @@ tags:
 
 ### Model ID mapping
 
+OpenGAP model IDs are bare model identifiers — **no provider prefix**.
+
 | Source framework model | OpenGAP model ID |
 |------------------------|-----------------|
 | `claude-opus-4-8` / `claude-opus-4-6` | `claude-opus-4-8` |
 | `claude-sonnet-4-6` / `claude-sonnet-4-5-*` | `claude-sonnet-4-6` |
 | `claude-haiku-4-5-*` | `claude-haiku-4-5-20251001` |
-| `gpt-4o` / `openai:gpt-4o` | `openai:gpt-4o` |
-| `gpt-4o-mini` | `openai:gpt-4o-mini` |
-| `gemini-2.0-flash` / `gemini-1.5-pro` | `google:gemini-2.0-flash` |
-| `gemini-2.0-flash-exp` | `google:gemini-2.0-flash` |
-| Any Anthropic model (no prefix) | prefix with `anthropic:` |
-| Any OpenAI model (no prefix) | prefix with `openai:` |
+| `gpt-4o` / `openai:gpt-4o` | `gpt-4o` |
+| `gpt-4o-mini` | `gpt-4o-mini` |
+| `gemini-2.0-flash` / `gemini-1.5-pro` | `gemini-2.0-flash` |
+| `gemini-2.0-flash-exp` | `gemini-2.0-flash` |
+| Any other model | use the bare model ID, strip any `provider:` prefix |
 
 ---
 
@@ -654,7 +655,7 @@ description: Researches a topic and writes an article based on findings
 model:
   preferred: claude-sonnet-4-6
   fallback:
-    - openai:gpt-4o
+    - gpt-4o
 runtime:
   max_turns: 20
 skills:
