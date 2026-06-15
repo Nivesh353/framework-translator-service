@@ -18,6 +18,8 @@ from lyzr import Studio          # the only import you usually need
 
 ## 2. Minimal Agent
 
+> **Single-script exception, but still foldered.** Lyzr ADK is a one-shot agent-*creation* script, so a single `create_agents.py` is acceptable — but wrap it in a project folder with `tools.py` (if any), `requirements.txt`, `.env.example`, and `README.md` per **Step 6** of the translate skill. Do not emit a bare `.py` file.
+
 `Studio()` authenticates with a Lyzr API key: pass `Studio(api_key="sk-...")` or set
 the `LYZR_API_KEY` environment variable (Studio reads it automatically). A missing or
 invalid key raises `AuthenticationError`. **Never** hardcode the key into the generated

@@ -7,6 +7,43 @@ OpenGAP spec version: 0.1.0 | Output: file/folder structure (not Python code)
 
 ---
 
+## 0. Multi-agent rules — READ THIS BEFORE GENERATING MULTI-AGENT OUTPUT
+
+The output must **run on the gitagent runtime**. Multi-agent works exactly one way on gitagent:
+
+1. Each specialist is a sub-agent under `agents/<name>/` (a mini agent with its own `agent.yaml` + `SOUL.md`).
+2. The **main** agent orchestrates them through an **orchestrator skill** that uses the built-in `cli`
+   tool to run each sub-agent as a separate process and read its output:
+
+   ```
+   gitagent --dir agents/<sub-agent-name> -p "<task for that sub-agent>"
+   ```
+
+There is no automatic hand-off between agents — the order and the hand-offs must be written as
+**explicit steps in the orchestrator skill** (see §10a). Generating `agents/` folders without that
+skill produces an agent that cannot delegate and loops.
+
+> **Sub-agent paths use a forward slash: `agents/<name>` — never `agents.<name>` (dot).** A dotted path
+> is nonexistent; gitagent silently bootstraps an empty default agent for it, so the real specialist
+> never runs. The orchestrator skill must instruct the runtime to use literal slash paths and to stop
+> if it sees `Creating directory` / `Created agent.yaml` (the tell-tale of a wrong path). See §10a.
+
+**Two RULES.md constraints you MUST honor (or the agent loops forever):**
+
+1. **Never forbid the main agent from producing output.** Do not write "Must never generate content
+   directly" / "always delegate". The main agent must always be allowed to make the `cli` calls and to
+   write the final synthesized answer. An absolute "never answer / always delegate" with no automatic
+   router is the exact cause of the infinite memory-save loop.
+2. **Do not rely on `max_turns` / `MAX_ITERATIONS` as a loop guard.** On gitagent a "turn" is one LLM
+   round and a single turn can emit unlimited tool calls, so it does not bound a runaway loop. Prevent
+   loops with clear "produce the final answer and stop" instructions instead.
+
+> When in doubt, prefer the single-agent + multiple-skills form (the §12 example): one main agent with
+> one skill per phase that it performs directly. It always runs on gitagent and never deadlocks. Only
+> create `agents/` sub-folders when a specialist needs genuine isolation (different model or tools).
+
+---
+
 ## 1. Output Structure
 
 ### Minimal (2 files — always required)
@@ -53,13 +90,14 @@ OpenGAP spec version: 0.1.0 | Output: file/folder structure (not Python code)
 │   └── <doc>.md
 ├── memory/
 │   └── MEMORY.md
-├── hooks/
-│   ├── hooks.yaml
-│   └── scripts/
-│       └── <hook-script>.sh
-└── workflows/
-    └── <workflow-name>.yaml
+└── hooks/
+    ├── hooks.yaml
+    └── scripts/
+        └── <hook-script>.sh
 ```
+
+> For multi-agent output, `skills/` must include an **orchestrator skill** (§10a) that drives the
+> `agents/` sub-folders via the `cli` tool — that skill is what makes delegation actually run.
 
 ---
 
@@ -72,9 +110,9 @@ version: 1.0.0
 description: <one-line description of what this agent does>
 
 model:
-  preferred: <model-id>         # see model mapping table below
+  preferred: <provider:model>   # MUST be provider:model, e.g. openai:gpt-4o — see model mapping below
   fallback:
-    - <fallback-model-id>
+    - <provider:model>          # also provider:model — double-check the provider spelling (openai, not opengai)
   constraints:
     temperature: 0.2            # omit if not specified in source
     max_tokens: 8192            # omit if not specified in source
@@ -89,15 +127,9 @@ skills:
 tools:
   - <tool-name>                 # file names under tools/ without .yaml
 
-# Include agents block only if source has sub-agents / handoffs / crews
-agents:
-  <sub-agent-name>:
-    description: <what this sub-agent does>
-    delegation:
-      mode: auto                # auto | explicit | router
-
-delegation:
-  mode: auto                    # auto: LLM decides; explicit: user triggers; router: dedicated router
+# For multi-agent sources: create agents/<name>/ folders (§10) + an orchestrator skill (§10a).
+# Do NOT add an `agents:` or `delegation:` block here — the gitagent runtime does not read them;
+# sub-agents are discovered from the agents/ directory and driven by the orchestrator skill.
 
 # Include mcp_servers only if source connects to external MCP servers
 mcp_servers:
@@ -132,18 +164,24 @@ tags:
 
 ### Model ID mapping
 
-OpenGAP model IDs are bare model identifiers — **no provider prefix**.
+Model IDs **MUST** be in `provider:model` form. The gitagent runtime rejects a bare model ID with
+`Invalid model format: "<id>". Expected "provider:model"` and the agent fails to start. Always include
+the provider prefix.
 
 | Source framework model | OpenGAP model ID |
 |------------------------|-----------------|
-| `claude-opus-4-8` / `claude-opus-4-6` | `claude-opus-4-8` |
-| `claude-sonnet-4-6` / `claude-sonnet-4-5-*` | `claude-sonnet-4-6` |
-| `claude-haiku-4-5-*` | `claude-haiku-4-5-20251001` |
-| `gpt-4o` / `openai:gpt-4o` | `gpt-4o` |
-| `gpt-4o-mini` | `gpt-4o-mini` |
-| `gemini-2.0-flash` / `gemini-1.5-pro` | `gemini-2.0-flash` |
-| `gemini-2.0-flash-exp` | `gemini-2.0-flash` |
-| Any other model | use the bare model ID, strip any `provider:` prefix |
+| `claude-opus-4-8` / `claude-opus-4-6` | `anthropic:claude-opus-4-8` |
+| `claude-sonnet-4-6` / `claude-sonnet-4-5-*` | `anthropic:claude-sonnet-4-6` |
+| `claude-haiku-4-5-*` | `anthropic:claude-haiku-4-5-20251001` |
+| `gpt-4o` / `openai:gpt-4o` | `openai:gpt-4o` |
+| `gpt-4o-mini` | `openai:gpt-4o-mini` |
+| `gemini-2.0-flash` / `gemini-1.5-pro` | `google:gemini-2.0-flash` |
+| `gemini-2.0-flash-exp` | `google:gemini-2.0-flash` |
+| Any other model | keep/add the correct `provider:` prefix — never strip it |
+
+> **Watch for typos in the provider prefix.** It is `openai:` (not `opengai:`), `anthropic:`, `google:`.
+> A misspelled provider in `model.fallback` only surfaces when the primary model fails, so it slips
+> through silently — double-check every prefix in both `preferred` and `fallback`.
 
 ---
 
@@ -228,7 +266,11 @@ Skills are **capabilities** the main agent has — not discrete entities. Use th
 | Google ADK plain tool function | Google ADK `sub_agents=[]` entry |
 | Agno tool | Agno `Team` member |
 
-**Never flatten multi-agent source code into skills.** If the source has N agents with distinct roles, create N `agents/<name>/` folders.
+**Preserve distinct agents — but make them runnable.** If the source has N agents with genuinely
+distinct roles that need isolation (different model or tools), create N `agents/<name>/` folders **and**
+the orchestrator skill (§10a). If the "agents" are really just sequential phases of one worker (same
+model, no isolation), the single-agent + one-skill-per-phase form (§12) is preferred — it always runs
+on gitagent. Use the decision table in §10a to choose.
 
 **What maps to a skill:**
 - A CrewAI **Task** with a distinct purpose (not a CrewAI Agent)
@@ -298,7 +340,7 @@ output_schema:
 
 implementation:
   type: script                  # script | http | mcp_server — choose based on source (see table below)
-  path: <tool-name>.py         # relative to tools/; create this script with the tool's logic
+  script: <tool-name>.py        # relative to tools/; create this script with the tool's logic
   runtime: python3
   timeout: 30
 
@@ -494,107 +536,110 @@ crew agent role+backstory, GroupChat agent system_message, sub_agent instruction
 
 | Source pattern | OpenGAP equivalent |
 |---------------|-------------------|
-| OpenAI Agents `handoff(target_agent)` | `agents/<target>/` + `delegation.mode: explicit` |
+| OpenAI Agents `handoff(target_agent)` | `agents/<target>/` + orchestrator skill cli-call |
 | CrewAI `Agent(role=, goal=, backstory=)` in a crew | `agents/<agent-name>/` with SOUL.md from role+goal+backstory |
-| AutoGen `GroupChat` agents | Multiple entries in `agents/`, `delegation.mode: auto` |
+| AutoGen `GroupChat` agents | Multiple entries in `agents/` + orchestrator skill |
 | LangGraph sub-graph | `agents/<subgraph-name>/` with its own skills |
-| Google ADK `sub_agents=[...]` | `agents/` entries with delegation triggers |
-| Agno `Team(members=[...])` | Multiple `agents/` entries |
+| Google ADK `sub_agents=[...]` | `agents/` entries + orchestrator skill cli-call |
+| Agno `Team(members=[...])` | Multiple `agents/` entries + orchestrator skill |
 
 ---
 
-## 11. workflows/ Template
+### 10a. Making sub-agents actually run (REQUIRED for multi-agent output)
 
-Use when the source has an **ordered, deterministic flow** between sub-agents (fan-out/fan-in, sequential pipeline, conditional branching). Workflows express *what happens in what order* — sub-agents express *who does it*.
+Creating `agents/<name>/` folders is necessary but **not sufficient** — by itself it produces an agent
+that cannot delegate and will loop (see §0). Every multi-agent translation MUST also generate **one
+orchestrator skill** on the **main** agent that drives the sub-agents via the `cli` tool.
 
-**`workflows/<workflow-name>.yaml`:**
+**Decision: do you even need sub-agents?**
 
-```yaml
-name: <workflow-name>           # required
-description: <what this workflow does>  # optional
-version: 1.0.0                  # optional
+| Situation | Do this |
+|---|---|
+| Sub-agents are just sequential *phases* (research → code → write), same model, no isolation needed | **Preferred & most reliable:** do NOT create `agents/`. Generate one skill per phase on the main agent and let it do each phase directly. (This is what §12 shows.) |
+| Sub-agents need genuine isolation (different model, different tools, independent autonomy) | Create `agents/<name>/` folders **and** the orchestrator skill below. |
 
-inputs:                         # optional
-  - name: prompt
-    type: string                # string | number | boolean | file | object | array
-    required: true
-    description: <what the caller provides>
+**Orchestrator skill template** — `skills/orchestrate/SKILL.md`:
 
-outputs:                        # optional
-  - name: final_output
-    type: string
+```markdown
+---
+name: orchestrate
+description: "Coordinate the specialist sub-agents to fulfil the user's request. Use for any
+  task that needs research, writing, or coding. Triggers on: any user request."
+allowed-tools: cli read
+metadata:
+  version: "1.0.0"
+  category: orchestration
+---
 
-steps:
-  - id: research                # required — unique kebab-case identifier
-    action: Gather information on the topic  # required — natural language description
-    agent: researcher           # optional — sub-agent to delegate to
-    inputs:
-      prompt: ${{ inputs.prompt }}
-    outputs:
-      - research_result
+# Orchestrate
 
-  - id: write                   # parallel with "code" — no depends_on conflict
-    action: Write content based on research findings
-    agent: writer
-    inputs:
-      research: ${{ steps.research.outputs.research_result }}
-      prompt: ${{ inputs.prompt }}
-    outputs:
-      - written_content
-    depends_on:
-      - research
+Drive the specialist sub-agents in order and combine their outputs into one final answer.
+Each sub-agent is run as a separate gitagent process with the `cli` tool.
 
-  - id: code
-    action: Write code if the request requires it, otherwise return N/A
-    agent: coder
-    inputs:
-      research: ${{ steps.research.outputs.research_result }}
-      prompt: ${{ inputs.prompt }}
-    outputs:
-      - code_output
-    depends_on:
-      - research
+## Step 0: Discover the real sub-agent folder names
+Run `ls agents/` with the `cli` tool and read the exact folder names. Use those literal names in every
+`gitagent --dir` call below — do not recall paths from memory.
 
-  - id: review
-    action: Review and combine all outputs into a final polished response
-    agent: reviewer
-    inputs:
-      written: ${{ steps.write.outputs.written_content }}
-      code: ${{ steps.code.outputs.code_output }}
-      prompt: ${{ inputs.prompt }}
-    outputs:
-      - final_output
-    depends_on:
-      - write
-      - code
+## Step 1: Plan
+Decide which specialists the request needs and in what order (e.g. researcher → coder → writer).
 
-error_handling:                 # optional
-  on_step_failure: abort        # abort | skip | retry | escalate
-  escalation_target: <agent-or-human>
+## Step 2: Run each specialist via the cli tool
+For each specialist, call the `cli` tool:
+
+    gitagent --dir agents/researcher -p "<the precise sub-task, including any results from earlier steps>"
+
+**The path MUST be written exactly as `agents/<name>` with a forward slash.** Never write a dotted form
+like `agents.researcher` — that is a different, nonexistent path, and gitagent will silently create an
+empty throwaway agent there instead of running the real specialist.
+
+Wait for it to finish and read its stdout. Pass the relevant output forward into the next call's prompt.
+Repeat for agents/coder, agents/writer, etc., as the plan requires.
+
+**Guard — detect a wrong path:** if a `cli` call prints `Creating directory` or `Created agent.yaml`,
+the path was wrong — gitagent just bootstrapped an empty default agent (you'll see a fresh `v0.1.0`
+agent with a generic identity). STOP, fix the path to `agents/<name>` with a slash, and re-run. Never
+use output from a freshly-created agent.
+
+## Step 3: Synthesize
+Combine the specialists' outputs into a single, coherent final response for the user.
+
+## Step 4: Finish
+Return the final response directly. Do not loop once the task is addressed.
 ```
 
-### Key rules
+**RULES.md for an orchestrator — write it so it CANNOT deadlock:**
 
-| Rule | Detail |
-|------|--------|
-| `id` + `action` are required on every step | nothing else is mandatory |
-| No `parallel:` keyword | parallelism is **implicit** — steps with the same `depends_on` set and no mutual dependency run in parallel automatically |
-| No `name:` on steps | use `id:` only |
-| `inputs` is a key-value object | **not** an array |
-| `outputs` is an array of strings | variable names, not key-value |
-| Template syntax is `${{ }}` | not `{{ }}` |
+- ✅ DO: "Run each specialist with the `cli` tool, then synthesize their outputs into the final answer."
+- ✅ DO: "When the task is fully addressed, produce the final answer and stop."
+- ❌ DO NOT write "Must never generate content directly" or "always delegate" as an absolute — the main
+  agent must always be allowed to (a) make the cli calls and (b) write the final synthesized answer.
+  An absolute "never answer / always delegate" with no executable router is the exact cause of the
+  infinite memory-save loop.
 
-### When to generate a workflow
+> If you are unsure whether the source's multi-agent structure is essential, prefer the single-agent
+> + multiple-skills form (the §12 example). It always runs on gitagent and never deadlocks.
 
-| Source pattern | Generate workflow? |
+---
+
+## 11. Ordering multi-agent flows
+
+When the source has an **ordered flow** between sub-agents (sequential pipeline, fan-out/fan-in,
+conditional branching), encode that order as **explicit, numbered steps in the orchestrator skill**
+(§10a) — not as a separate file. The orchestrator skill is the only thing the gitagent runtime
+actually executes, so the flow lives there.
+
+| Source flow | How to encode it in the orchestrator skill |
 |---|---|
-| CrewAI `Flow` with `@start`/`@listen` ordering | Yes — map each listener as a step with `depends_on` |
-| CrewAI `Crew` with `Process.sequential` | Yes — one step per task in order |
-| LangGraph linear chain of nodes | Yes — one step per node |
-| LangGraph conditional edges | Yes — use `conditions:` on steps |
-| AutoGen `GroupChat` sequential speakers | Yes |
-| Google ADK `SequentialAgent` / `ParallelAgent` | Yes — sequential = `depends_on` chain; parallel = same `depends_on` |
-| Pure dynamic LLM routing (no fixed order) | No — express as `delegation.mode: auto` in agent.yaml instead |
+| CrewAI `Crew` `Process.sequential` / `Flow` `@start`/`@listen` | One numbered step per task, in order; each step's prompt includes the previous step's output. |
+| LangGraph linear chain of nodes | One step per node, in edge order. |
+| LangGraph conditional edges | A step that inspects the prior result and chooses which sub-agent to call next. |
+| AutoGen `GroupChat` sequential speakers | One step per speaker, in turn order. |
+| Google ADK `SequentialAgent` | Steps run in sequence (each waits for the previous). |
+| Google ADK `ParallelAgent` / fan-out | Run the independent sub-agents, then a final step that combines their outputs. |
+| Pure dynamic routing (no fixed order) | A planning step that picks the right specialist per request, then calls it. |
+
+Pass data between steps in plain language: include the relevant output of an earlier `cli` call inside
+the prompt of the next one. Keep a final "synthesize and stop" step so the agent terminates cleanly.
 
 ---
 
@@ -755,7 +800,7 @@ output_schema:
           snippet: {type: string}
 implementation:
   type: script
-  path: web-search.py
+  script: web-search.py
   runtime: python3
   timeout: 30
 annotations:
@@ -779,13 +824,13 @@ annotations:
 | Translating a LangGraph State as a skill | State schema belongs in the CIR notes, not as a skill — OpenGAP doesn't have explicit state objects |
 | Missing `name` field in SKILL.md frontmatter | `name` must match the folder name exactly (kebab-case) |
 | Agent name with underscores | Use hyphens, not underscores: `my-agent` not `my_agent` |
-| Using `parallel:` in a workflow step | No `parallel:` keyword exists — parallelism is implicit: steps with the same `depends_on` set and no mutual dependency run in parallel automatically |
+| Creating `agents/` sub-folders with no orchestrator skill | The main agent then has no way to call them and loops — always add the orchestrator skill (§10a) |
+| RULES.md saying "never generate content directly / always delegate" | Causes the infinite memory-save loop — the main agent must be allowed to make `cli` calls and write the final answer |
+| Emitting a `delegation:` or `agents:` block in `agent.yaml`, or a `workflows/*.yaml` | The gitagent runtime does not execute them — encode order in the orchestrator skill instead |
+| Bare model id without provider | `model.preferred`/`fallback` must be `provider:model` (e.g. `openai:gpt-4o`) or the runtime refuses to start |
 | Creating `knowledge/` as a placeholder with `documents: []` | Only create `knowledge/` if the source agent has an actual RAG system, document store, or embedded reference material — never create it empty |
-| Using `{{ }}` template syntax in workflows | Must be `${{ }}` — e.g. `${{ inputs.prompt }}`, `${{ steps.research.outputs.result }}` |
 | Writing `allowed-tools:` with no value | `allowed-tools: ` (null) is schema-invalid — omit the line entirely when the skill uses no tools |
 | Writing empty fields in agent.yaml | Omit `tools: []`, `author: ""`, `mcp_servers: []`, and any field with an empty or null value — only write fields that have content |
-| Using `name:` on workflow steps | Workflow steps use `id:` not `name:` — e.g. `id: research`, not `name: research` |
-| `inputs:` on a workflow step as an array | `inputs` is a key-value object (`key: value`), not a list — use `inputs:\n  prompt: ${{ inputs.prompt }}` |
 
 ---
 
@@ -806,6 +851,12 @@ Before delivering the OpenGAP output, verify:
 - [ ] Source instructions/system prompts are verbatim in SOUL.md (not paraphrased)
 - [ ] Source constraints/guardrails are in RULES.md
 
+**Multi-agent (only if `agents/` sub-folders exist)**
+- [ ] An orchestrator skill (§10a) exists on the main agent that runs each sub-agent via the `cli` tool
+- [ ] No `agents:` / `delegation:` block in `agent.yaml` and no `workflows/*.yaml` (the runtime ignores them)
+- [ ] RULES.md does NOT forbid the main agent from producing output / does not mandate absolute delegation
+- [ ] The orchestrator skill ends with a "synthesize the final answer and stop" step
+
 **Tools**
 - [ ] All source tool functions have corresponding `tools/<name>.yaml` files
 - [ ] All `tools[]` in agent.yaml have matching `tools/<name>.yaml` files
@@ -816,12 +867,10 @@ Before delivering the OpenGAP output, verify:
 - [ ] `knowledge/` created ONLY if the source has an actual RAG system, document store, or embedded reference material — never created as an empty placeholder
 - [ ] `memory/MEMORY.md` created only if source has persistent memory or cross-session conversation history
 
-**Workflows**
-- [ ] If source has an ordered multi-agent flow (sequential, fan-out/fan-in, conditional), a `workflows/<name>.yaml` is generated
-- [ ] All workflow step `inputs` are key-value objects (not arrays)
-- [ ] All workflow template expressions use `${{ }}` not `{{ }}`
-- [ ] No `parallel:` keyword used in workflow — parallelism is implicit via `depends_on`
+**Flow ordering**
+- [ ] Any ordered multi-agent flow is encoded as numbered steps in the orchestrator skill (not a workflow file)
+- [ ] Data is passed between steps by including the prior step's output in the next step's prompt
 
 **Models & Notes**
-- [ ] Model IDs are valid OpenGAP model strings (see §2 mapping table)
+- [ ] Model IDs are valid `provider:model` strings (see §2 mapping table) — every `preferred` and `fallback` has a provider prefix
 - [ ] All `# TRANSLATION NOTE:` comments are present where concepts are lossy

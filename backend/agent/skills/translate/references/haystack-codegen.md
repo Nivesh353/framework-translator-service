@@ -219,6 +219,8 @@ pipe.add_component("router", router)
 
 ## 8. Complete RAG Pipeline Example
 
+> **Illustration only — do NOT emit a single file.** Condensed for readability. Real output must be a multi-file project (`components/<component>.py` one per `@component`, `pipeline.py`, `main.py`, `requirements.txt`, `.env.example`, `README.md`) per **Step 6** of the translate skill, with correct cross-module imports.
+
 ```python
 from haystack import Pipeline, Document
 from haystack.document_stores.in_memory import InMemoryDocumentStore

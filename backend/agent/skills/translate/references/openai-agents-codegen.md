@@ -264,6 +264,8 @@ async def main():
 
 ## 9. Complete Minimal Example
 
+> **Illustration only — do NOT emit a single file.** Condensed for readability. Real output must be a multi-file project (`agents.py`, `tools.py`, `main.py`, plus a separate module per sub-agent if several, `requirements.txt`, `.env.example`, `README.md`) per **Step 6** of the translate skill, with correct cross-module imports.
+
 ```python
 import asyncio
 from pydantic import BaseModel

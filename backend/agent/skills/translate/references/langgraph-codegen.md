@@ -301,6 +301,8 @@ async for event in graph.astream_events(
 
 ## 14. Complete Minimal Example
 
+> **Illustration only — do NOT emit a single file.** The snippet below is condensed into one block for readability. Actual output must be a **multi-file project** (`state.py`, `tools.py`, `nodes.py`, `graph.py`, `main.py`, `langgraph.json`, `requirements.txt`, `.env.example`, `README.md`) as mandated by **Step 6** of the translate skill. Split this example across those files with correct cross-module imports.
+
 ```python
 from typing import Annotated, TypedDict, Literal
 from langgraph.graph import StateGraph, START, END

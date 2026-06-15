@@ -88,7 +88,25 @@ pip install {package1} {package2} ...
 Verify:
 - Package names are correct (e.g., `langgraph` not `lang-graph`)
 - Packages are actively maintained and available on PyPI
-- Version constraints if the source specified them
+
+### 3a: Verify every pinned version actually exists on PyPI
+
+This is a **FAIL-level** check. A version pin that doesn't exist makes `pip install` abort with *"No matching distribution found"* — the whole project is dead on arrival.
+
+For every package in `requirements.txt` / `pyproject.toml` / any manifest:
+
+1. **Look up the real available versions:**
+   ```bash
+   pip index versions <package>            # lists all published versions
+   # fallback if that's unavailable:
+   curl -s https://pypi.org/pypi/<package>/json | python3 -c "import sys,json; print(json.load(sys.stdin)['info']['version'])"
+   ```
+   (or **WebSearch** `pypi <package> latest version` if the network is restricted)
+2. **Confirm the pin is satisfiable** against that real version list:
+   - A `==X.Y.Z` must be a version that appears in the list.
+   - A `>=X.Y` floor must be **≤ the newest published version** — flag any floor higher than the latest release.
+   - The generated code's API style must match a version the pin allows (don't pin to an older major while using newer-major-only APIs, or vice versa).
+3. **Report each package as PASS/FAIL** with the latest published version, and for any FAIL state the corrected pin.
 
 List all environment variables required:
 ```bash
@@ -135,6 +153,10 @@ Output a structured report:
 | 2 | Conditional routing adapted | Could use {alternative} instead |
 
 ### Dependencies
+| Package | Pinned | Latest on PyPI | Status |
+|---------|--------|----------------|--------|
+| `{package}` | `{pinned}` | `{latest}` | PASS / FAIL — {reason + corrected pin} |
+
 pip install {packages}
 
 ### Environment Variables

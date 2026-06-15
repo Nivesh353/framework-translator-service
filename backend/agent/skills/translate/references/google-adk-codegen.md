@@ -373,6 +373,8 @@ asyncio.run(main())
 
 ## 10. Complete Minimal Example
 
+> **Illustration only — do NOT emit a single file.** Condensed for readability. ADK **requires** a package layout: real output must be a multi-file project (`__init__.py`, `agent.py`, `tools.py`, `sub_agents/<name>/{agent.py,__init__.py}` for each sub-agent, `requirements.txt`, `.env.example`, `README.md`) per **Step 6** of the translate skill, with correct cross-module imports.
+
 ```python
 import asyncio
 from google.adk.agents import Agent

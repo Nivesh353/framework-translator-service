@@ -210,6 +210,8 @@ async for message in group_chat.invoke():
 
 ## 9. Complete Minimal Example
 
+> **Illustration only — do NOT emit a single file.** Condensed for readability. Real output must be a multi-file project (`plugins/<plugin>.py` one per plugin class, `kernel_setup.py`, `main.py`, `requirements.txt`, `.env.example`, `README.md`) per **Step 6** of the translate skill, with correct cross-module imports.
+
 ```python
 import asyncio
 from semantic_kernel import Kernel

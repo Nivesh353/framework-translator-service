@@ -406,6 +406,8 @@ code_agent = CodeExecutorAgent("executor", code_executor=docker_executor)
 
 ## 10. Complete Minimal Example
 
+> **Illustration only — do NOT emit a single file.** Condensed for readability. Real output must be a multi-file project (`agents.py`, `tools.py`, `main.py`, `requirements.txt`, `.env.example`, `README.md`) per **Step 6** of the translate skill, with correct cross-module imports.
+
 ### Legacy (0.2.x)
 
 ```python

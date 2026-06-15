@@ -66,6 +66,30 @@ Key parameters:
 - `agent` — the agent assigned to execute this task
 - `context` — list of other Task objects whose outputs are provided as context
 
+> **CRITICAL — `{var}` interpolation vs `context=[...]` are two different things. Do not confuse them.**
+> CrewAI scans every `{var}` in `description`/`expected_output` and substitutes it from the `inputs={}`
+> dict passed to `kickoff()`, **at kickoff time**. If a `{var}` has no matching key in `inputs`, CrewAI
+> raises `ValueError` (a missing interpolation key) and the crew never runs.
+>
+> - Use `{var}` **only** for real kickoff inputs (e.g. `{topic}`, `{user_prompt}`) — values you actually
+>   pass into `kickoff(inputs={...})`.
+> - To feed **a prior task's output** into a later task, use **`context=[earlier_task]`** — NOT a
+>   `{placeholder}` in the description. CrewAI injects the prior output into the agent's context
+>   automatically; no templating is needed.
+>
+> ❌ Wrong — `{research_output}` is not a kickoff input, so this raises `ValueError`:
+> ```yaml
+> write_task:
+>   description: "Write a blog post based on {research_output}."   # ValueError: missing key
+> ```
+> ✅ Right — wire the dependency through `context`, keep the description placeholder-free:
+> ```python
+> write_task = Task(description="Write a blog post based on the research findings.",
+>                   expected_output="...", agent=writer, context=[research_task])
+> ```
+> When translating a multi-step pipeline, map every "uses the previous step's result" edge to a
+> `context=[...]` entry — never to a `{...}` placeholder.
+
 ---
 
 ## 4. Crew Assembly Template
@@ -151,6 +175,12 @@ writing_task:
   agent: writer
   output_file: article.md
 ```
+
+> **Note** how `writing_task` says "based on the research findings" in plain English — it does **not**
+> write `{research_output}`. The research task's output reaches the writer via `context=[research_task]`
+> wired in `crew.py` (§7), not via a YAML placeholder. The only `{var}` here is `{topic}`, which is a
+> real `kickoff(inputs={"topic": ...})` value. Putting a prior task's output as a `{placeholder}` here
+> would raise `ValueError` at kickoff (see the rule in §3).
 
 ---
 
@@ -402,6 +432,8 @@ results = crew.kickoff_for_each(
 
 ## 11. Complete Minimal Example
 
+> **Illustration only — do NOT emit a single file.** Condensed for readability. Real output must be a multi-file project (`config/agents.yaml`, `config/tasks.yaml`, `crew.py`, `tools/`, `main.py`, `pyproject.toml` or `requirements.txt`, `.env.example`, `README.md`) per **Step 6** of the translate skill, with correct cross-module imports.
+
 ```python
 from crewai import Agent, Task, Crew, Process
 from crewai.tools import tool
@@ -445,7 +477,8 @@ print(result.raw)
 | Pitfall | Fix |
 |---|---|
 | Forgetting `expected_output` on a Task | Required field; CrewAI raises a validation error without it |
-| Using `{variable}` in description but not passing `inputs={}` to `kickoff` | Variables render as literal `{variable}` strings |
+| Using `{variable}` in a description with no matching key in `kickoff(inputs={})` | CrewAI raises `ValueError` for the missing interpolation key — the crew never runs. Only use `{var}` for real kickoff inputs. |
+| Using a `{prior_task_output}` placeholder to pass one task's result to the next | Wrong mechanism — raises `ValueError`. Wire it with `context=[earlier_task]` instead and keep the description placeholder-free (see §3). |
 | Setting `allow_delegation=True` with a single agent | Delegation fails with no one to delegate to; set `False` |
 | Circular `context` dependencies between tasks | Tasks deadlock; ensure context flows in one direction |
 | Missing `manager_llm` with `Process.hierarchical` | Hierarchical process requires a manager; provide `manager_llm` |

@@ -59,6 +59,238 @@
       "outcome": "success",
       "ended_at": "2026-06-12T08:30:28.636Z",
       "skill_used": "translate"
+    },
+    {
+      "id": "bb5b4e8d-b3aa-4187-b1df-1f50df9b6b43",
+      "objective": "Clone GitHub repo, analyze OpenGAP source framework, translate to LangGraph, write output files",
+      "steps": [
+        {
+          "description": "Cloned repo and analyzed all source files. Detected OpenGAP (spec_version 0.1.0). Extracted CIR: single agent with 2 tools (calculator, word-count), 1 skill (react-tool-calling), gpt-4o model, ReAct loop orchestration. Now generating LangGraph multi-file project.",
+          "timestamp": "2026-06-12T11:18:22.577Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-12T11:17:42.466Z",
+      "outcome": "success",
+      "ended_at": "2026-06-12T11:20:54.456Z",
+      "skill_used": "translate"
+    },
+    {
+      "id": "510d8485-f00f-44a9-b215-027bd6f8d7f9",
+      "objective": "Clone GitHub repo, analyze OpenGAP source, translate to LangGraph, write output files",
+      "steps": [
+        {
+          "description": "Cloned repo, detected OpenGAP source (agent.yaml + SOUL.md present, spec_version: 0.1.0), read all source files, loaded LangGraph codegen reference",
+          "timestamp": "2026-06-12T11:51:37.760Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-12T11:50:59.797Z",
+      "outcome": "success",
+      "ended_at": "2026-06-12T11:54:03.169Z",
+      "skill_used": "translate"
+    },
+    {
+      "id": "9ee43e5d-4353-48ae-ae33-7f0be066d256",
+      "objective": "Clone GitHub repo, analyze LangGraph agent, translate to OpenGAP format, validate output",
+      "steps": [
+        {
+          "description": "Cloned repo and read all source files. Detected LangGraph multi-agent system with supervisor, researcher, writer, coder agents. Loaded OpenGAP codegen reference.",
+          "timestamp": "2026-06-12T14:16:33.543Z"
+        },
+        {
+          "description": "Generated all OpenGAP files. opengap validate passed with 0 errors on first attempt.",
+          "timestamp": "2026-06-12T14:18:13.313Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-12T14:15:04.040Z",
+      "outcome": "success",
+      "ended_at": "2026-06-12T14:18:17.051Z",
+      "skill_used": "translate"
+    },
+    {
+      "id": "6f2db131-0bcc-4ca8-9f18-e06b7230e0dd",
+      "objective": "Clone GitHub repo, analyze source framework, translate to OpenGAP format, validate output",
+      "steps": [
+        {
+          "description": "Analyzed source: LangGraph multi-agent system with supervisor + 3 specialists (researcher, writer, coder). Loaded OpenGAP codegen reference. Now generating output files.",
+          "timestamp": "2026-06-14T15:36:45.278Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-14T15:36:13.306Z",
+      "outcome": "success",
+      "ended_at": "2026-06-14T15:38:04.603Z",
+      "skill_used": "translate"
+    },
+    {
+      "id": "f141357e-5291-4597-bae2-b80e0033605e",
+      "objective": "Clone GitHub repo, analyze LangGraph agent, translate to OpenGAP format, validate output",
+      "steps": [
+        {
+          "description": "Cloned repo and read all source files. Detected LangGraph multi-agent system with supervisor, researcher, writer, coder nodes.",
+          "timestamp": "2026-06-14T18:35:10.211Z"
+        },
+        {
+          "description": "Understood OpenGAP structure: agent.yaml (spec_version, name, version, description, model with provider:model format, skills, tools), SOUL.md, RULES.md, skills/<name>/SKILL.md. Now generating all output files.",
+          "timestamp": "2026-06-14T18:35:43.145Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-14T18:34:44.764Z",
+      "outcome": "success",
+      "ended_at": "2026-06-14T18:36:55.610Z",
+      "skill_used": "translate"
+    },
+    {
+      "id": "d9963de5-e175-42a3-b317-fbc88c184009",
+      "objective": "Clone GitHub repo, analyze OpenGAP source, translate to LangGraph, write output files",
+      "steps": [
+        {
+          "description": "Source analysis complete — OpenGAP multi-agent supervisor with 3 sub-agents (researcher, writer, coder). Generating LangGraph multi-file project.",
+          "timestamp": "2026-06-14T18:47:23.521Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-14T18:46:43.497Z",
+      "outcome": "success",
+      "ended_at": "2026-06-14T18:49:34.818Z",
+      "skill_used": "translate"
+    },
+    {
+      "id": "79e69610-353a-4d46-be35-086a855d6d3a",
+      "objective": "Clone https://github.com/patel-lyzr/multi-agent-crewai, analyze it, translate to OpenGAP format, write to /tmp/gitagent-out-198accd1-b6cc-4883-8b9b-40c316c53f3f, validate with opengap validate",
+      "steps": [
+        {
+          "description": "Cloned repo, read all source files, loaded opengap-codegen reference. Source is CrewAI with Flow orchestration: 4 agents (Researcher, Writer, Coder, Reviewer), 4 crews, 1 Flow with fan-out pattern.",
+          "timestamp": "2026-06-15T04:31:45.819Z"
+        },
+        {
+          "description": "Generated all OpenGAP files: agent.yaml, SOUL.md, RULES.md, skills/orchestrate/SKILL.md, agents/researcher/{agent.yaml,SOUL.md}, agents/writer/{agent.yaml,SOUL.md}, agents/coder/{agent.yaml,SOUL.md}, agents/reviewer/{agent.yaml,SOUL.md}. opengap validate passed with 0 errors.",
+          "timestamp": "2026-06-15T04:33:37.976Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-15T04:31:15.519Z",
+      "outcome": "success",
+      "ended_at": "2026-06-15T04:33:40.497Z",
+      "skill_used": "translate"
+    },
+    {
+      "id": "78b64cbd-dd0b-4d60-b364-4108386e756c",
+      "objective": "Clone GitHub repo, analyze source framework, translate to CrewAI, write output files",
+      "steps": [
+        {
+          "description": "Cloned repo and read all source files. Source framework: OpenGAP. Multi-agent system with orchestrator + 4 sub-agents (researcher, writer, coder, reviewer). Research→Write+Code(parallel)→Review pipeline.",
+          "timestamp": "2026-06-15T04:42:00.660Z"
+        },
+        {
+          "description": "Loaded concept-mapping.md. Now building CIR and generating CrewAI translation.",
+          "timestamp": "2026-06-15T04:42:10.839Z"
+        },
+        {
+          "description": "Generated all CrewAI output files: config/agents.yaml, config/tasks.yaml, crew.py, main.py, requirements.txt, .env.example, README.md",
+          "timestamp": "2026-06-15T04:43:51.757Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-15T04:41:29.277Z",
+      "outcome": "success",
+      "ended_at": "2026-06-15T04:44:29.497Z",
+      "skill_used": "translate"
+    },
+    {
+      "id": "eafc87f8-c546-431d-878e-396d2532c032",
+      "objective": "Clone GitHub repo, analyze OpenGAP source, translate to CrewAI, write output files",
+      "steps": [
+        {
+          "description": "Cloned repo and read all source OpenGAP files. Framework detected: OpenGAP. 4 sub-agents: researcher, writer, coder, reviewer. Now generating CrewAI translation.",
+          "timestamp": "2026-06-15T05:01:12.964Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-15T05:00:32.301Z",
+      "outcome": "success",
+      "ended_at": "2026-06-15T05:03:16.958Z",
+      "skill_used": "translate"
+    },
+    {
+      "id": "f63c5284-114e-4e0a-9e9d-a735565f5aad",
+      "objective": "Analyze source agent at /tmp/gitagent-src-c5154aef-132a-42be-9ba2-d07be6d0ae14, detect framework, translate to LangGraph, write output to /tmp/gitagent-out-c5154aef-132a-42be-9ba2-d07be6d0ae14",
+      "steps": [
+        {
+          "description": "Detected source framework: OpenGAP. Read all agent files (orchestrator + 4 sub-agents: researcher, writer, coder, reviewer). Loaded LangGraph codegen reference. Now generating translation.",
+          "timestamp": "2026-06-15T05:44:29.930Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-15T05:43:50.168Z",
+      "outcome": "success",
+      "ended_at": "2026-06-15T05:47:33.757Z",
+      "skill_used": "translate"
+    },
+    {
+      "id": "df521a9b-cab4-4821-8df7-26cec8f152ad",
+      "objective": "Analyze source agent at /tmp/gitagent-src-dbbf30b5-b7ce-457a-acf9-304f114e9f94, detect framework, translate to LangGraph, write output to /tmp/gitagent-out-dbbf30b5-b7ce-457a-acf9-304f114e9f94",
+      "steps": [
+        {
+          "description": "Source framework detected: OpenGAP (agent.yaml + SOUL.md present). Agent: test-agent-7, Simple AI Assistant, model: anthropic/claude-sonnet-4-6, memory: cognis, no tools.",
+          "timestamp": "2026-06-15T05:48:25.137Z"
+        },
+        {
+          "description": "CIR extracted. Now generating LangGraph translation.",
+          "timestamp": "2026-06-15T05:48:39.869Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-15T05:48:09.272Z",
+      "outcome": "success",
+      "ended_at": "2026-06-15T05:51:22.400Z",
+      "skill_used": "translate"
+    },
+    {
+      "id": "ca6c049d-807d-4aa7-adb8-012c4fc2794a",
+      "objective": "Analyze source agent repository, translate to OpenGAP format, validate output",
+      "steps": [
+        {
+          "description": "Analysis complete: CrewAI Flow source detected. 3 crews (researcher/writer/editor), 5-step pipeline with conditional branching. Using single-agent + multiple-skills approach per §0/§10a guidance.",
+          "timestamp": "2026-06-15T06:09:44.623Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-15T06:09:21.383Z",
+      "outcome": "success",
+      "ended_at": "2026-06-15T06:11:15.100Z",
+      "skill_used": "translate"
+    },
+    {
+      "id": "04a58f09-ad67-4093-b1fb-0dcdcc13bcc2",
+      "objective": "Analyze source agent at /tmp/gitagent-src-adb97bf9-0478-435d-8464-296b6517dd67, detect framework, translate to CrewAI, write output to /tmp/gitagent-out-adb97bf9-0478-435d-8464-296b6517dd67",
+      "steps": [
+        {
+          "description": "Detected source framework: OpenGAP. Analyzed agent: blog-article-generator with 4 sequential skills (classify-topic, research-topic, write-article, review-and-finalize). No external tools, single-agent sequential pipeline.",
+          "timestamp": "2026-06-15T06:18:07.061Z"
+        }
+      ],
+      "attempts": 1,
+      "status": "succeeded",
+      "started_at": "2026-06-15T06:17:41.815Z",
+      "outcome": "success",
+      "ended_at": "2026-06-15T06:20:29.806Z",
+      "skill_used": "translate"
     }
   ]
 }
