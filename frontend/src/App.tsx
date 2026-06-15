@@ -35,6 +35,7 @@ export default function App() {
   const logEndRef = useRef<HTMLDivElement>(null);
 
   // GitHub connection state
+  const [authChecked, setAuthChecked] = useState(false);
   const [ghConfigured, setGhConfigured] = useState(false);
   const [ghUser, setGhUser] = useState<GhUser | null>(null);
   const [repos, setRepos] = useState<Repo[]>([]);
@@ -76,6 +77,7 @@ export default function App() {
   }, [logs]);
 
   async function refreshAuth() {
+    setAuthChecked(false);
     try {
       const r = await fetch(`${API}/auth/me`, { credentials: "include" });
       const d = await r.json();
@@ -84,6 +86,8 @@ export default function App() {
       if (d.connected) loadRepos();
     } catch {
       /* ignore */
+    } finally {
+      setAuthChecked(true);
     }
   }
 
@@ -261,13 +265,20 @@ export default function App() {
                 <p className="text-xs text-muted-foreground">{ghNotice}</p>
               )}
 
-              {!ghConfigured && (
+              {!authChecked && (
+                <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                  <span className="animate-spin inline-block w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full" />
+                  Connecting to server…
+                </div>
+              )}
+
+              {authChecked && !ghConfigured && (
                 <p className="text-sm text-amber-700">
                   GitHub OAuth isn’t configured on the server. Set GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET, or use “Paste URL”.
                 </p>
               )}
 
-              {ghConfigured && !ghUser && (
+              {authChecked && ghConfigured && !ghUser && (
                 <button
                   onClick={connectGithub}
                   disabled={busy}
