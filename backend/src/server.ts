@@ -2,9 +2,10 @@ import "dotenv/config";
 import express, { type Request, type Response } from "express";
 import cors from "cors";
 import session from "express-session";
+import multer from "multer";
 import archiver from "archiver";
 import { existsSync, createWriteStream, createReadStream } from "fs";
-import { rm } from "fs/promises";
+import { rm, mkdir, writeFile } from "fs/promises";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { randomBytes } from "crypto";
@@ -156,6 +157,70 @@ async function runConversion(
 }
 
 const pendingZips = new Map<string, string>();
+// Converted output kept around (keyed by sessionId) so the user can publish it to GitHub.
+const pendingOutputs = new Map<string, { outDir: string; repoName: string }>();
+const RESULT_TTL_MS = 30 * 60 * 1000; // 30 min
+
+/** Drop a finished session's zip + output dir and forget it. */
+async function cleanupSession(sessionId: string): Promise<void> {
+  const zipPath = pendingZips.get(sessionId);
+  if (zipPath) await rm(zipPath, { force: true }).catch(() => {});
+  const out = pendingOutputs.get(sessionId);
+  if (out) await rm(out.outDir, { recursive: true, force: true }).catch(() => {});
+  pendingZips.delete(sessionId);
+  pendingOutputs.delete(sessionId);
+}
+
+/**
+ * Run the agent against an already-populated srcDir, streaming progress over SSE,
+ * then zip the output and register it for download + publish. Shared by the URL
+ * and folder-upload conversion flows.
+ */
+async function runAgentStream(
+  srcDir: string,
+  outDir: string,
+  sessionId: string,
+  targetFramework: string,
+  repoName: string,
+  send: (event: string, data: string) => void
+): Promise<void> {
+  const prompt = buildPrompt(targetFramework, srcDir, outDir);
+
+  const agent = query({ prompt, dir: SAMPLEAGENT_DIR, model: MODEL, maxTurns: 50 });
+
+  for await (const msg of agent as AsyncIterable<GCMessage>) {
+    if (msg.type === "delta") {
+      send("progress", msg.content);
+    }
+    if (msg.type === "tool_use") {
+      const label = `${msg.toolName}(${JSON.stringify(msg.args).slice(0, 120)})`;
+      const isValidate = msg.toolName === "bash" && JSON.stringify(msg.args).includes("opengap validate");
+      send(isValidate ? "validating" : "tool", label);
+    }
+    if (msg.type === "system" && msg.subtype === "error") {
+      throw new Error(msg.content);
+    }
+  }
+
+  if (!existsSync(outDir)) {
+    throw new Error("Agent did not produce output directory");
+  }
+
+  const zipPath = `/tmp/gitagent-zip-${sessionId}.zip`;
+  await new Promise<void>((resolve, reject) => {
+    const output = createWriteStream(zipPath);
+    const archive = archiver("zip", { zlib: { level: 6 } });
+    archive.on("error", reject);
+    output.on("close", resolve);
+    archive.pipe(output);
+    archive.directory(outDir, repoName);
+    archive.finalize();
+  });
+
+  pendingZips.set(sessionId, zipPath);
+  pendingOutputs.set(sessionId, { outDir, repoName });
+  setTimeout(() => { void cleanupSession(sessionId); }, RESULT_TTL_MS);
+}
 
 // ── GitHub API helpers ────────────────────────────────────────────────────
 
@@ -196,6 +261,58 @@ async function fetchAllRepos(token: string): Promise<RepoSummary[]> {
   return repos;
 }
 
+/** Create a new repo under the connected user, retrying with -2, -3… on name collision. */
+async function createUserRepo(token: string, name: string, isPrivate: boolean): Promise<{ html_url: string; name: string }> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = attempt === 0 ? name : `${name}-${attempt + 1}`;
+    const res = await fetch("https://api.github.com/user/repos", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+        "User-Agent": "framework-translator",
+      },
+      body: JSON.stringify({ name: candidate, private: isPrivate, auto_init: false }),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { html_url: string; name: string };
+      return data;
+    }
+    if (res.status === 422) continue; // name already exists — try next suffix
+    throw new Error(`GitHub repo creation failed: ${res.status}`);
+  }
+  throw new Error("Could not find an available repository name.");
+}
+
+/** Initialise a git repo in dir and push it to the given remote, keeping the token out of argv. */
+async function pushDirToRepo(dir: string, login: string, repo: string, token: string): Promise<void> {
+  const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "http.extraheader",
+    GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`,
+  };
+  const remote = `https://github.com/${login}/${repo}.git`;
+  const run = (args: string[]) => execFileAsync("git", ["-C", dir, ...args], { env, timeout: 120_000 });
+  try {
+    await run(["init", "-q"]);
+    await run(["checkout", "-q", "-B", "main"]);
+    await run(["add", "-A"]);
+    await run([
+      "-c", "user.email=agent@lyzr.ai",
+      "-c", "user.name=Framework Translator",
+      "commit", "-q", "-m", "Converted by Framework Translator",
+    ]);
+    await run(["push", remote, "HEAD:main"]);
+  } catch (err: any) {
+    const msg = String(err?.stderr || err?.message || err).replace(/AUTHORIZATION:[^\n]*/gi, "AUTHORIZATION: [redacted]");
+    throw new Error(`git push failed: ${msg.trim()}`);
+  }
+}
+
 // ── Express app ─────────────────────────────────────────────────────────
 
 const app = express();
@@ -215,6 +332,24 @@ app.use(
     },
   })
 );
+
+// Multipart upload (folder → many files) held in memory; ~50MB total, generous per-file cap.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024, files: 4000, fieldSize: 50 * 1024 * 1024 },
+});
+
+/** Resolve a user-supplied relative path safely under base, stripping the leading folder segment. */
+function safeUploadPath(base: string, relPath: string): string | null {
+  const segments = relPath.split("/").filter((s) => s && s !== ".");
+  if (segments.some((s) => s === "..")) return null;
+  // Drop the leading root folder so files land directly under srcDir.
+  const trimmed = segments.length > 1 ? segments.slice(1) : segments;
+  if (trimmed.length === 0) return null;
+  const resolved = path.resolve(base, trimmed.join("/"));
+  if (resolved !== base && !resolved.startsWith(base + path.sep)) return null;
+  return resolved;
+}
 
 // GET /health
 app.get("/health", (_req: Request, res: Response) => {
@@ -410,46 +545,8 @@ app.post("/convert/stream", async (req: Request, res: Response) => {
     send("progress", "Cloning repository…");
     await cloneRepo(url, token, srcDir);
 
-    const prompt = buildPrompt(targetFramework, srcDir, outDir);
+    await runAgentStream(srcDir, outDir, sessionId, targetFramework, repoName, send);
 
-    const session = query({
-      prompt,
-      dir: SAMPLEAGENT_DIR,
-      model: MODEL,
-      maxTurns: 50,
-    });
-
-    for await (const msg of session as AsyncIterable<GCMessage>) {
-      if (msg.type === "delta") {
-        send("progress", msg.content);
-      }
-      if (msg.type === "tool_use") {
-        const label = `${msg.toolName}(${JSON.stringify(msg.args).slice(0, 120)})`;
-        const isValidate = msg.toolName === "bash" && JSON.stringify(msg.args).includes("opengap validate");
-        send(isValidate ? "validating" : "tool", label);
-      }
-      if (msg.type === "system" && msg.subtype === "error") {
-        throw new Error(msg.content);
-      }
-    }
-
-    if (!existsSync(outDir)) {
-      throw new Error("Agent did not produce output directory");
-    }
-
-    // Save zip to a temp file and send its path so client can download
-    const zipPath = `/tmp/gitagent-zip-${sessionId}.zip`;
-    await new Promise<void>((resolve, reject) => {
-      const output = createWriteStream(zipPath);
-      const archive = archiver("zip", { zlib: { level: 6 } });
-      archive.on("error", reject);
-      output.on("close", resolve);
-      archive.pipe(output);
-      archive.directory(outDir, repoName);
-      archive.finalize();
-    });
-
-    pendingZips.set(sessionId, zipPath);
     send("done", sessionId);
     res.end();
 
@@ -457,9 +554,96 @@ app.post("/convert/stream", async (req: Request, res: Response) => {
     console.error(`[${sessionId}] Stream error:`, err);
     send("error", String(err));
     res.end();
+    await rm(outDir, { recursive: true, force: true }).catch(() => {});
+  } finally {
+    // Keep outDir (retained via pendingOutputs) so the result can be published; only drop the clone.
+    await rm(srcDir, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+// POST /convert/upload  →  convert an uploaded local folder (multipart) with SSE progress
+app.post("/convert/upload", upload.array("files"), async (req: Request, res: Response) => {
+  const targetFramework = (req.body?.targetFramework as string) ?? "OpenGAP";
+  const files = (req.files as Express.Multer.File[]) ?? [];
+
+  if (files.length === 0) {
+    res.status(400).json({ error: "No files uploaded" });
+    return;
+  }
+  if (!SUPPORTED_FRAMEWORKS.map(f => f.toLowerCase()).includes(targetFramework.toLowerCase())) {
+    res.status(400).json({ error: `Unsupported targetFramework: "${targetFramework}"`, supported: SUPPORTED_FRAMEWORKS });
+    return;
+  }
+
+  const sessionId = uuidv4();
+  const srcDir = `/tmp/gitagent-src-${sessionId}`;
+  const outDir = `/tmp/gitagent-out-${sessionId}`;
+  // Folder name = first path segment of the first uploaded file.
+  const rootName = files[0]?.originalname.split("/")[0] || "agent";
+  const repoName = rootName.replace(/[^A-Za-z0-9._-]/g, "-");
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event: string, data: string) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  console.log(`[${sessionId}] Upload conversion (${files.length} files) → ${targetFramework}`);
+
+  try {
+    send("progress", `Receiving ${files.length} files…`);
+    await mkdir(srcDir, { recursive: true });
+    for (const f of files) {
+      const dest = safeUploadPath(srcDir, f.originalname);
+      if (!dest) continue; // skip unsafe / empty paths
+      await mkdir(path.dirname(dest), { recursive: true });
+      await writeFile(dest, f.buffer);
+    }
+
+    await runAgentStream(srcDir, outDir, sessionId, targetFramework, repoName, send);
+
+    send("done", sessionId);
+    res.end();
+
+  } catch (err) {
+    console.error(`[${sessionId}] Upload stream error:`, err);
+    send("error", String(err));
+    res.end();
+    await rm(outDir, { recursive: true, force: true }).catch(() => {});
   } finally {
     await rm(srcDir, { recursive: true, force: true }).catch(() => {});
-    await rm(outDir, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+// POST /publish  →  create a new repo under the connected user and push the conversion output
+app.post("/publish", async (req: Request, res: Response) => {
+  const token = req.session.githubToken;
+  const login = req.session.githubUser?.login;
+  if (!token || !login) {
+    res.status(401).json({ error: "Connect GitHub first to publish." });
+    return;
+  }
+
+  const { sessionId, repoName, private: isPrivate = false } = req.body ?? {};
+  const out = typeof sessionId === "string" ? pendingOutputs.get(sessionId) : undefined;
+  if (!out || !existsSync(out.outDir)) {
+    res.status(404).json({ error: "Conversion result not found or expired. Convert again, then publish." });
+    return;
+  }
+
+  const cleanName = String(repoName || out.repoName).replace(/[^A-Za-z0-9._-]/g, "-").replace(/^-+|-+$/g, "") || "converted-agent";
+
+  try {
+    const repo = await createUserRepo(token, cleanName, Boolean(isPrivate));
+    await pushDirToRepo(out.outDir, login, repo.name, token);
+    await cleanupSession(sessionId); // published — drop the retained output (zip already removed here too)
+    res.json({ url: repo.html_url });
+  } catch (err) {
+    console.error("Publish error:", err);
+    res.status(502).json({ error: String(err instanceof Error ? err.message : err) });
   }
 });
 
@@ -499,6 +683,8 @@ app.listen(PORT, () => {
   console.log(`  POST /auth/logout`);
   console.log(`  GET  /repos               → list connected user's repos`);
   console.log(`  POST /convert         → ZIP download`);
-  console.log(`  POST /convert/stream  → SSE progress`);
+  console.log(`  POST /convert/stream  → SSE progress (URL source)`);
+  console.log(`  POST /convert/upload  → SSE progress (folder upload)`);
+  console.log(`  POST /publish         → push result to a new GitHub repo`);
   console.log(`  GET  /download/:id    → fetch completed zip\n`);
 });
